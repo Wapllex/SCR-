@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SCR Companion</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="container">
+
+    <h1>SCR Companion</h1>
+
+    <!-- Menu 1 : Choix du train -->
+    <section id="menu-train">
+      <h2>Choisis ton type de train</h2>
+      <div class="train-options">
+        <button class="train-btn bleu" data-train="Connect">Connect</button>
+        <button class="train-btn violet" data-train="Express">Express</button>
+        <button class="train-btn orange" data-train="Airlink">Airlink</button>
+        <button class="train-btn gris" data-train="Waterline">Waterline</button>
+        <button class="train-btn rouge" data-train="Métro">Métro</button>
+      </div>
+    </section>
+
+    <!-- Menu 2 : Nombre d'arrêts -->
+    <section id="menu-arrets" class="hidden">
+      <h2>Combien d'arrêts ?</h2>
+      <input type="number" id="input-arrets" min="1" max="20" value="5" />
+      <button id="btn-valider-arrets">Valider</button>
+    </section>
+
+    <!-- Menu 3 : Navigation -->
+    <section id="menu-navigation" class="hidden">
+      <h2>Itinéraire : <span id="train-choisi"></span></h2>
+      <p>Nombre d'arrêts : <span id="nombre-arrets"></span></p>
+      <p>Heure actuelle (moins 1h) : <span id="heure-actuelle"></span></p>
+
+      <div id="liste-arrets"></div>
+
+      <div class="actions">
+        <button id="btn-commencer">Commencer le voyage</button>
+        <button id="btn-arrive">Arrivé à l'arrêt suivant</button>
+        <button id="btn-terminus">Terminus</button>
+      </div>
+      <p>Chrono : <span id="chrono">00:00</span></p>
+    </section>
+
+    <!-- Récapitulatif -->
+    <section id="menu-recap" class="hidden">
+      <h2>Récapitulatif du voyage</h2>
+      <p>Temps total : <span id="temps-total"></span></p>
+      <button id="btn-repartir">Repartir dans l'autre sens</button>
+      <button id="btn-recommencer">Retour au début</button>
+    </section>
+
+  </div>
+
+  <script>
+    // Variables globales
+    let trainChoisi = "";
+    let nombreArrets = 0;
+    let arretsStatus = [];
+    let chronoInterval;
+    let secondes = 0;
+    let sensNormal = true;
+
+    // Sélecteurs
+    const menuTrain = document.getElementById('menu-train');
+    const menuArrets = document.getElementById('menu-arrets');
+    const menuNavigation = document.getElementById('menu-navigation');
+    const menuRecap = document.getElementById('menu-recap');
+
+    const btnCommencer = document.getElementById('btn-commencer');
+    const btnArrive = document.getElementById('btn-arrive');
+    const btnTerminus = document.getElementById('btn-terminus');
+    const btnValiderArrets = document.getElementById('btn-valider-arrets');
+    const btnRepartir = document.getElementById('btn-repartir');
+    const btnRecommencer = document.getElementById('btn-recommencer');
+
+    const trainChoisiSpan = document.getElementById('train-choisi');
+    const nombreArretsSpan = document.getElementById('nombre-arrets');
+    const heureActuelleSpan = document.getElementById('heure-actuelle');
+    const listeArretsDiv = document.getElementById('liste-arrets');
+    const chronoSpan = document.getElementById('chrono');
+    const tempsTotalSpan = document.getElementById('temps-total');
+
+    // Afficher l'heure actuelle -1h
+    function afficherHeure() {
+      const now = new Date();
+      now.setHours(now.getHours() - 1);
+      const h = String(now.getHours()).padStart(2,'0');
+      const m = String(now.getMinutes()).padStart(2,'0');
+      heureActuelleSpan.textContent = `${h}:${m}`;
+    }
+
+    // Créer la liste des arrêts
+    function creerListeArrets() {
+      listeArretsDiv.innerHTML = "";
+      arretsStatus = [];
+      for(let i=1; i<=nombreArrets; i++) {
+        arretsStatus.push({fait:false, heure:null});
+        const div = document.createElement('div');
+        div.className = "arret";
+        div.id = `arret-${i}`;
+        div.innerHTML = `
+          <label>
+            <input type="checkbox" disabled />
+            Arrêt ${i}
+            <span class="heure-arret"></span>
+          </label>
+        `;
+        listeArretsDiv.appendChild(div);
+      }
+    }
+
+    // Afficher la liste des arrêts et cochés
+    function cocherArret(num) {
+      if(num < 1 || num > nombreArrets) return;
+      if(arretsStatus[num-1].fait) return;
+      arretsStatus[num-1].fait = true;
+      arretsStatus[num-1].heure = new Date();
+      const arretDiv = document.getElementById(`arret-${num}`);
+      const checkbox = arretDiv.querySelector('input[type=checkbox]');
+      const heureSpan = arretDiv.querySelector('.heure-arret');
+      checkbox.checked = true;
+      heureSpan.textContent = ` (${arretsStatus[num-1].heure.getHours()}:${String(arretsStatus[num-1].heure.getMinutes()).padStart(2,'0')})`;
+    }
+
+    // Chrono
+    function demarrerChrono() {
+      clearInterval(chronoInterval);
+      secondes = 0;
+      chronoSpan.textContent = "00:00";
+      chronoInterval = setInterval(() => {
+        secondes++;
+        const min = String(Math.floor(secondes / 60)).padStart(2,'0');
+        const sec = String(secondes % 60).padStart(2,'0');
+        chronoSpan.textContent = `${min}:${sec}`;
+      }, 1000);
+    }
+
+    function arreterChrono() {
+      clearInterval(chronoInterval);
+    }
+
+    // Réinitialiser tout
+    function resetAll() {
+      trainChoisi = "";
+      nombreArrets = 0;
+      arretsStatus = [];
+      sensNormal = true;
+      secondes = 0;
+      clearInterval(chronoInterval);
+      chronoSpan.textContent = "00:00";
+      menuRecap.classList.add('hidden');
+      menuNavigation.classList.add('hidden');
+      menuArrets.classList.add('hidden');
+      menuTrain.classList.remove('hidden');
+    }
+
+    // Gérer clics
+
+    // Choix train
+    document.querySelectorAll('.train-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        trainChoisi = btn.dataset.train;
+        trainChoisiSpan.textContent = trainChoisi;
+        menuTrain.classList.add('hidden');
+        menuArrets.classList.remove('hidden');
+        afficherHeure();
+      });
+    });
+
+    // Valider nombre d'arrêts
+    btnValiderArrets.addEventListener('click', () => {
+      const val = parseInt(document.getElementById('input-arrets').value);
+      if(val >= 1 && val <= 20) {
+        nombreArrets = val;
+        nombreArretsSpan.textContent = nombreArrets;
+        creerListeArrets();
+        menuArrets.classList.add('hidden');
+        menuNavigation.classList.remove('hidden');
+      } else {
+        alert("Merci de saisir un nombre d'arrêts entre 1 et 20");
+      }
+    });
+
+    // Commencer voyage
+    btnCommencer.addEventListener('click', () => {
+      demarrerChrono();
+      cocherArret(1);
+      btnCommencer.disabled = true;
+    });
+
+    // Arrivé arrêt suivant
+    btnArrive.addEventListener('click', () => {
+      let dernierFait = arretsStatus.findIndex(a => !a.fait);
+      if(dernierFait === -1) {
+        alert("Tous les arrêts sont déjà cochés !");
+        return;
+      }
+      cocherArret(dernierFait + 1);
+    });
+
+    // Terminus
+    btnTerminus.addEventListener('click', () => {
+      cocherArret(nombreArrets);
+      arreterChrono();
+      tempsTotalSpan.textContent = chronoSpan.textContent;
+      menuNavigation.classList.add('hidden');
+      menuRecap.classList.remove('hidden');
+    });
+
+    // Repartir dans l'autre sens
+    btnRepartir.addEventListener('click', () => {
+      arretsStatus.reverse();
+      sensNormal = !sensNormal;
+      secondes = 0;
+      demarrerChrono();
+      creerListeArrets();
+      menuRecap.classList.add('hidden');
+      menuNavigation.classList.remove('hidden');
+      btnCommencer.disabled = true;
+      cocherArret(1);
+    });
+
+    // Retour au début
+    btnRecommencer.addEventListener('click', () => {
+      resetAll();
+    });
+
+    // Initial
+    resetAll();
+
+  </script>
+
+</body>
+</html>
